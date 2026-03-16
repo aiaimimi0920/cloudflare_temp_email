@@ -5,7 +5,7 @@ compatibility_flags = [ "nodejs_compat" ]
 keep_vars = true
 
 [vars]
-PREFIX = "tmp"
+PREFIX = ""
 DEFAULT_DOMAINS = ["test.example.com"]
 DOMAINS = ["test.example.com"]
 JWT_SECRET = "e2e-test-secret-key"

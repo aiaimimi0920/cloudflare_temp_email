@@ -135,6 +135,7 @@ api.post('/api/new_address', async (c) => {
     // Check if custom email names are disabled from environment variable
     const disableCustomAddressName = getBooleanValue(c.env.DISABLE_CUSTOM_ADDRESS_NAME);
 
+    const hasCustomName = !!(typeof name === 'string' && name.trim()) && !disableCustomAddressName;
     // if no name or custom names are disabled, generate random name
     if (!name || disableCustomAddressName) {
         // Generate random name with context-based length configuration
@@ -159,7 +160,7 @@ api.post('/api/new_address', async (c) => {
             || 'web:unknown';
         const res = await newAddress(c, {
             name, domain,
-            enablePrefix: true,
+            enablePrefix: !hasCustomName,
             checkLengthByConfig: true,
             addressPrefix,
             sourceMeta
