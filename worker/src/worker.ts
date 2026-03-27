@@ -24,6 +24,7 @@ const API_PATHS = [
 	"/admin/",
 	"/telegram/",
 	"/external/",
+	"/mail/",
 ];
 
 const app = new Hono<HonoCustomType>()
@@ -53,14 +54,16 @@ app.use('/*', async (c, next) => {
 
 	// check header x-custom-auth
 	const passwords = getPasswords(c);
+	const auth = c.req.raw.headers.get("x-custom-auth");
+	const isAuthenticatedCustomAuth = Boolean(auth && passwords.includes(auth));
 	if (!c.req.path.startsWith("/open_api") && !c.req.path.startsWith("/telegram/") && passwords && passwords.length > 0) {
-		const auth = c.req.raw.headers.get("x-custom-auth");
 		if (!auth || !passwords.includes(auth)) {
 			return c.text(msgs.CustomAuthPasswordMsg, 401)
 		}
 	}
 
 	// rate limit for specific endpoints
+	const skipPublicCreateAddressLimit = isAuthenticatedCustomAuth && c.req.path.startsWith("/api/new_address");
 	if (
 		c.req.path.startsWith("/api/new_address")
 		|| c.req.path.startsWith("/api/send_mail")
@@ -68,19 +71,21 @@ app.use('/*', async (c, next) => {
 		|| c.req.path.startsWith("/user_api/register")
 		|| c.req.path.startsWith("/user_api/verify_code")
 	) {
-		const reqIp = c.req.raw.headers.get("cf-connecting-ip")
-		if (reqIp && c.env.RATE_LIMITER) {
-			const { success } = await c.env.RATE_LIMITER.limit(
-				{ key: `${c.req.path}|${reqIp}` }
-			)
-			if (!success) {
-				return c.text(`IP=${reqIp} Rate limit exceeded for ${c.req.path}`, 429)
+		if (!skipPublicCreateAddressLimit) {
+			const reqIp = c.req.raw.headers.get("cf-connecting-ip")
+			if (reqIp && c.env.RATE_LIMITER) {
+				const { success } = await c.env.RATE_LIMITER.limit(
+					{ key: `${c.req.path}|${reqIp}` }
+				)
+				if (!success) {
+					return c.text(`IP=${reqIp} Rate limit exceeded for ${c.req.path}`, 429)
+				}
 			}
-		}
-		// Check access control (blacklist and daily limit)
-		const accessControlResponse = await checkAccessControl(c);
-		if (accessControlResponse) {
-			return accessControlResponse;
+			// Check access control (blacklist and daily limit)
+			const accessControlResponse = await checkAccessControl(c);
+			if (accessControlResponse) {
+				return accessControlResponse;
+			}
 		}
 	}
 	// webhook check
