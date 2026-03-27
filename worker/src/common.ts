@@ -253,52 +253,52 @@ export const generateRandomPassword = (): string => {
     return password;
 }
 
-const generatePasswordForAddress = async (
-    c: Context<HonoCustomType>,
-    address: string
-): Promise<string | null> => {
+const buildGeneratedPassword = async (
+    c: Context<HonoCustomType>
+): Promise<{ plainPassword: string; hashedPassword: string } | null> => {
     if (!getBooleanValue(c.env.ENABLE_ADDRESS_PASSWORD)) {
         return null;
     }
 
     const plainPassword = generateRandomPassword();
     const hashedPassword = await hashPassword(plainPassword);
-    const { success } = await c.env.DB.prepare(
-        `UPDATE address SET password = ?, updated_at = datetime('now') WHERE name = ?`
-    ).bind(hashedPassword, address).run();
-
-    if (!success) {
-        console.warn("Failed to set generated password for address:", address);
-        return null;
-    }
-
-    return plainPassword;
+    return { plainPassword, hashedPassword };
 }
 
 const insertAddressRecord = async (
     c: Context<HonoCustomType>,
     address: string,
     sourceMeta: string | undefined | null,
-    msgs: ReturnType<typeof i18n.getMessagesbyContext>
-): Promise<void> => {
+    msgs: ReturnType<typeof i18n.getMessagesbyContext>,
+    generatedPassword?: { plainPassword: string; hashedPassword: string } | null,
+): Promise<number | undefined> => {
     try {
-        const result = await c.env.DB.prepare(
-            `INSERT INTO address(name, source_meta) VALUES(?, ?)`
-        ).bind(address, sourceMeta).run();
+        const result = generatedPassword
+            ? await c.env.DB.prepare(
+                `INSERT INTO address(name, password, source_meta) VALUES(?, ?, ?)`
+            ).bind(address, generatedPassword.hashedPassword, sourceMeta).run()
+            : await c.env.DB.prepare(
+                `INSERT INTO address(name, source_meta) VALUES(?, ?)`
+            ).bind(address, sourceMeta).run();
         if (!result.success) {
             throw new Error(msgs.FailedCreateAddressMsg)
         }
+        return Number(result.meta?.last_row_id ?? 0) || undefined;
     } catch (e) {
         const message = (e as Error).message;
         // Fallback: source_meta field may not exist, try without it
         if (message && message.includes("source_meta")) {
-            const result = await c.env.DB.prepare(
-                `INSERT INTO address(name) VALUES(?)`
-            ).bind(address).run();
+            const result = generatedPassword
+                ? await c.env.DB.prepare(
+                    `INSERT INTO address(name, password) VALUES(?, ?)`
+                ).bind(address, generatedPassword.hashedPassword).run()
+                : await c.env.DB.prepare(
+                    `INSERT INTO address(name) VALUES(?)`
+                ).bind(address).run();
             if (!result.success) {
                 throw new Error(msgs.FailedCreateAddressMsg)
             }
-            return;
+            return Number(result.meta?.last_row_id ?? 0) || undefined;
         }
         throw e;
     }
@@ -383,6 +383,7 @@ export const newAddress = async (
         throw new Error(msgs.RandomSubdomainNotAllowedMsg)
     }
 
+    const generatedPassword = await buildGeneratedPassword(c);
     const maxAttempts = enableRandomSubdomain ? MAX_RANDOM_SUBDOMAIN_ATTEMPTS : 1;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const addressDomain = enableRandomSubdomain
@@ -391,19 +392,22 @@ export const newAddress = async (
         const address = `${name}@${addressDomain}`;
 
         try {
-            await insertAddressRecord(c, address, sourceMeta, msgs);
-            await updateAddressUpdatedAt(c, address);
+            const insertedAddressId = await insertAddressRecord(
+                c,
+                address,
+                sourceMeta,
+                msgs,
+                generatedPassword,
+            );
+            updateAddressUpdatedAt(c, address);
 
-            const address_id = await c.env.DB.prepare(
+            const address_id = insertedAddressId ?? await c.env.DB.prepare(
                 `SELECT id FROM address where name = ?`
             ).bind(address).first<number>("id");
 
             if (!address_id) {
                 throw new Error(msgs.FailedCreateAddressMsg);
             }
-
-            // 如果启用地址密码功能，自动生成密码
-            const generatedPassword = await generatePasswordForAddress(c, address);
 
             // create jwt
             const jwt = await Jwt.sign({
@@ -413,7 +417,7 @@ export const newAddress = async (
             return {
                 jwt: jwt,
                 address: address,
-                password: generatedPassword,
+                password: generatedPassword?.plainPassword ?? null,
                 address_id: address_id,
             }
         } catch (e) {
@@ -476,11 +480,23 @@ export const cleanup = async (
                 `id NOT IN (SELECT address_id FROM users_address) AND created_at < datetime('now', '-${cleanDays} day')`
             )
             break;
-        case "mails":
-            await c.env.DB.prepare(`
-                DELETE FROM raw_mails WHERE created_at < datetime('now', '-${cleanDays} day')`
-            ).run();
+        case "mails": {
+            while (true) {
+                const result = await c.env.DB.prepare(`
+                    DELETE FROM raw_mails
+                    WHERE id IN (
+                        SELECT id FROM raw_mails
+                        WHERE created_at < datetime('now', '-${cleanDays} day')
+                        LIMIT 1000
+                    )`
+                ).run();
+                const changes = Number(result.meta?.changes ?? 0);
+                if (!Number.isFinite(changes) || changes <= 0) {
+                    break;
+                }
+            }
             break;
+        }
         case "mails_unknow":
             await c.env.DB.prepare(`
                 DELETE FROM raw_mails WHERE address NOT IN
