@@ -194,12 +194,7 @@ export const newAddress = async (
     const allowDomains = checkAllowDomains ? await getAllowDomains(c) : getDomains(c);
     // if domain is not set, select domain based on environment configuration
     if (!domain && allowDomains.length > 0) {
-        const createAddressDefaultDomainFirst = getBooleanValue(c.env.CREATE_ADDRESS_DEFAULT_DOMAIN_FIRST);
-        if (createAddressDefaultDomainFirst) {
-            domain = allowDomains[0];
-        } else {
-            domain = allowDomains[Math.floor(Math.random() * allowDomains.length)];
-        }
+        domain = allowDomains[Math.floor(Math.random() * allowDomains.length)];
     }
     // check domain is valid
     if (!domain || !allowDomains.includes(domain)) {
