@@ -127,35 +127,90 @@ export const getStringArray = (
     return value;
 }
 
+const normalizeDomainValue = (value: string | undefined | null): string => {
+    if (typeof value !== "string") {
+        return "";
+    }
+    return value.trim().toLowerCase();
+}
+
+const isValidSubdomainLabel = (value: string): boolean => {
+    return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
+}
+
+export const getSubdomainLabelPool = (c: Context<HonoCustomType>): string[] => {
+    const values = getStringArray(c.env.SUBDOMAIN_LABEL_POOL);
+    const uniqueValues = new Set<string>();
+
+    for (const rawValue of values) {
+        const value = normalizeDomainValue(rawValue);
+        if (!value) {
+            continue;
+        }
+        if (!isValidSubdomainLabel(value)) {
+            console.warn(`Skip invalid SUBDOMAIN_LABEL_POOL value: ${rawValue}`);
+            continue;
+        }
+        uniqueValues.add(value);
+    }
+
+    return Array.from(uniqueValues);
+}
+
+export const expandDomainTemplates = (
+    c: Context<HonoCustomType>,
+    value: string | string[] | undefined | null
+): string[] => {
+    const configuredDomains = getStringArray(value);
+    const subdomainLabelPool = getSubdomainLabelPool(c);
+    const uniqueDomains = new Set<string>();
+
+    for (const rawDomain of configuredDomains) {
+        const domain = normalizeDomainValue(rawDomain);
+        if (!domain) {
+            continue;
+        }
+        if (!domain.startsWith("*.")) {
+            uniqueDomains.add(domain);
+            continue;
+        }
+
+        const rootDomain = domain.slice(2);
+        if (!rootDomain) {
+            continue;
+        }
+        if (subdomainLabelPool.length === 0) {
+            console.warn(`Skip wildcard domain template ${domain}: SUBDOMAIN_LABEL_POOL is empty`);
+            continue;
+        }
+        for (const label of subdomainLabelPool) {
+            uniqueDomains.add(`${label}.${rootDomain}`);
+        }
+    }
+
+    return Array.from(uniqueDomains);
+}
+
 export const getDefaultDomains = (c: Context<HonoCustomType>): string[] => {
     if (c.env.DEFAULT_DOMAINS == undefined || c.env.DEFAULT_DOMAINS == null) {
         return getDomains(c);
     }
-    const domains = getStringArray(c.env.DEFAULT_DOMAINS);
-    return domains || getDomains(c);
+    const domains = expandDomainTemplates(c, c.env.DEFAULT_DOMAINS);
+    return domains.length > 0 ? domains : getDomains(c);
 }
 
 export const getDomains = (c: Context<HonoCustomType>): string[] => {
     if (!c.env.DOMAINS) {
         return [];
     }
-    // check if DOMAINS is an array, if not use json.parse
-    if (!Array.isArray(c.env.DOMAINS)) {
-        try {
-            return JSON.parse(c.env.DOMAINS);
-        } catch (e) {
-            console.error("Failed to parse DOMAINS", e);
-            return [];
-        }
-    }
-    return c.env.DOMAINS;
+    return expandDomainTemplates(c, c.env.DOMAINS);
 }
 
 export const getRandomSubdomainDomains = (c: Context<HonoCustomType>): string[] => {
     if (!c.env.RANDOM_SUBDOMAIN_DOMAINS) {
         return [];
     }
-    return getStringArray(c.env.RANDOM_SUBDOMAIN_DOMAINS);
+    return expandDomainTemplates(c, c.env.RANDOM_SUBDOMAIN_DOMAINS);
 }
 
 export const getUserRoles = (c: Context<HonoCustomType>): UserRole[] => {
@@ -404,9 +459,11 @@ export default {
     getBooleanValue,
     getIntValue,
     getStringArray,
+    getSubdomainLabelPool,
     getDefaultDomains,
     getDomains,
     getRandomSubdomainDomains,
+    expandDomainTemplates,
     getUserRoles,
     getAnotherWorkerList,
     getPasswords,

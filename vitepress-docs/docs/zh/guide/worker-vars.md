@@ -7,8 +7,8 @@
 
 | 变量名                     | 类型        | 说明                                       | 示例                                 |
 | -------------------------- | ----------- | ------------------------------------------ | ------------------------------------ |
-| `DOMAINS`                  | JSON        | 用于临时邮箱的所有域名, 支持多个域名       | `["awsl.uk", "dreamhunter2333.xyz"]` |
-| `JWT_SECRET`               | 文本/Secret | 用于签名 JWT 的密钥，JWT 用于登录鉴权。请使用随机字符串，例如通过 `openssl rand -hex 32` 生成  | `a1b2c3d4...`                        |
+| `DOMAINS`                  | JSON        | 用于临时邮箱的所有域名, 支持多个域名以及 `*.example.com` 模板 | `["awsl.uk", "*.example.com"]` |
+| `JWT_SECRET`               | 文本/Secret | 用于签名 JWT 的密钥，JWT 用于登录鉴权。请使用随机字符串，例如通过 `openssl rand -hex 32` 生成 | `a1b2c3d4...`                        |
 | `ADMIN_PASSWORDS`          | JSON        | admin 控制台密码, 不配置则不允许访问控制台 | `["123", "456"]`                     |
 | `ENABLE_USER_CREATE_EMAIL` | 文本/JSON   | 是否允许用户创建邮箱, 不配置则不允许       | `true`                               |
 | `ENABLE_USER_DELETE_EMAIL` | 文本/JSON   | 是否允许用户删除邮件, 不配置则不允许       | `true`                               |
@@ -31,6 +31,7 @@
 | `ADDRESS_CHECK_REGEX`                 | 文本      | `邮箱名称` 的正则表达式, 只用于检查                                                                                               | `^(?!.*admin).*`                          |
 | `ADDRESS_REGEX`                       | 文本      | `邮箱名称` 替换非法符号的正则表达式, 不在其中的符号将被替换，如果不设置，默认为 `[^a-z0-9]`, 需谨慎使用, 有些符号可能导致无法收件 | `[^a-z0-9]`                               |
 | `DEFAULT_DOMAINS`                     | JSON      | 默认用户可用的域名(未登录或未分配角色的用户)                                                                                      | `["awsl.uk", "dreamhunter2333.xyz"]`      |
+| `SUBDOMAIN_LABEL_POOL`                | JSON      | 用于把 `*.example.com` 这类通配模板展开成预先配置好的子域名池。池中的每个子域名都必须已经在 Cloudflare Email Routing 中配置可收信。 | `["mail1", "mail2", "mail3"]`            |
 | `CREATE_ADDRESS_DEFAULT_DOMAIN_FIRST` | 文本/JSON | 创建新地址时是否优先使用默认域名，如果设置为 true，当未指定域名时将使用第一个域名, 主要用于 telegram bot 场景                     | `false`                                   |
 | `ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH` | 文本/JSON | 是否允许创建邮箱 API 使用“基础域名后缀匹配”。开启后，如果允许域名里有 `example.com`，则 `/api/new_address` 与 `/admin/new_address` 可以接受 `foo.example.com`、`a.b.example.com` 这类子域名 | `true` |
 | `RANDOM_SUBDOMAIN_DOMAINS`            | JSON      | 允许启用随机子域名的基础域名列表，启用后可把 `name@abc.com` 创建成 `name@随机串.abc.com`                                         | `["abc.com"]`                             |
@@ -105,6 +106,7 @@
 >
 > - 如果 `domains` 为空将使用 `DEFAULT_DOMAINS`
 > - 如果 prefix 为 null 将使用默认前缀, 如果 prefix 为空字符串将不使用前缀
+> - 当配合 `SUBDOMAIN_LABEL_POOL` 使用时，`domains` 也支持 `*.example.com` 这类通配模板
 >
 > 通过用户界面部署时 `USER_ROLES` 请配置为此格式 `[{"domains":["awsl.uk","dreamhunter2333.xyz"],"role":"vip","prefix":"vip"},{"domains":["awsl.uk","dreamhunter2333.xyz"],"role":"admin","prefix":""}]`
 >

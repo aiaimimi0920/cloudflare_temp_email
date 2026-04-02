@@ -28,6 +28,7 @@ type Bindings = {
     ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH: string | boolean | undefined
     RANDOM_SUBDOMAIN_DOMAINS: string | string[] | undefined
     RANDOM_SUBDOMAIN_LENGTH: string | number | undefined
+    SUBDOMAIN_LABEL_POOL: string | string[] | undefined
     DISABLE_CUSTOM_ADDRESS_NAME: string | boolean | undefined
     CREATE_ADDRESS_DEFAULT_DOMAIN_FIRST: string | boolean | undefined
     ADMIN_USER_ROLE: string | undefined

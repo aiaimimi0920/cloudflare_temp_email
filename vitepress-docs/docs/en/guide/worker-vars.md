@@ -7,7 +7,7 @@
 
 | Variable Name              | Type        | Description                                                            | Example                              |
 | -------------------------- | ----------- | ---------------------------------------------------------------------- | ------------------------------------ |
-| `DOMAINS`                  | JSON        | All domains for temporary email, supports multiple domains             | `["awsl.uk", "dreamhunter2333.xyz"]` |
+| `DOMAINS`                  | JSON        | All domains for temporary email, supports multiple domains and `*.example.com` templates | `["awsl.uk", "*.example.com"]` |
 | `JWT_SECRET`               | Text/Secret | Secret key for signing JWTs used in login and authentication. Use a random string, e.g. generated via `openssl rand -hex 32` | `a1b2c3d4...`                        |
 | `ADMIN_PASSWORDS`          | JSON        | Admin console passwords, console access disabled if not configured     | `["123", "456"]`                     |
 | `ENABLE_USER_CREATE_EMAIL` | Text/JSON   | Whether to allow users to create mailboxes, disabled if not configured | `true`                               |
@@ -31,6 +31,7 @@
 | `ADDRESS_CHECK_REGEX`                 | Text      | Regular expression for `email address` name, used for validation only                                                                                                                                             | `^(?!.*admin).*`                          |
 | `ADDRESS_REGEX`                       | Text      | Regular expression to replace illegal symbols in `email address` name, symbols not in the regex will be replaced. Default is `[^a-z0-9]` if not set. Use with caution as some symbols may prevent email reception | `[^a-z0-9]`                               |
 | `DEFAULT_DOMAINS`                     | JSON      | Default domains available to users (not logged in or users without assigned roles)                                                                                                                                | `["awsl.uk", "dreamhunter2333.xyz"]`      |
+| `SUBDOMAIN_LABEL_POOL`                | JSON      | Expands wildcard domains such as `*.example.com` into a pre-provisioned subdomain pool. Each label must already be configured in Cloudflare Email Routing.                                                     | `["mail1", "mail2", "mail3"]`            |
 | `CREATE_ADDRESS_DEFAULT_DOMAIN_FIRST` | Text/JSON | Whether to prioritize default domain when creating new addresses, if set to true, will use the first domain when no domain is specified, mainly for telegram bot scenarios                                        | `false`                                   |
 | `ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH` | Text/JSON | Whether to allow create-address APIs to use base-domain suffix matching. When enabled, if `example.com` is allowed, `/api/new_address` and `/admin/new_address` can also accept `foo.example.com` or `a.b.example.com` | `true` |
 | `RANDOM_SUBDOMAIN_DOMAINS`            | JSON      | Base domains that allow optional random subdomain creation, so `name@abc.com` can become `name@<random>.abc.com`                                                                                                   | `["abc.com"]`                             |
@@ -109,6 +110,7 @@
 >
 > - If `domains` is empty, `DEFAULT_DOMAINS` will be used
 > - If prefix is null, the default prefix will be used, if prefix is an empty string, no prefix will be used
+> - `domains` also supports wildcard templates such as `*.example.com` when used with `SUBDOMAIN_LABEL_POOL`
 >
 > When deploying through UI, configure `USER_ROLES` in this format: `[{"domains":["awsl.uk","dreamhunter2333.xyz"],"role":"vip","prefix":"vip"},{"domains":["awsl.uk","dreamhunter2333.xyz"],"role":"admin","prefix":""}]`
 >

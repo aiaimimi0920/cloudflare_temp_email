@@ -759,7 +759,10 @@ export const getAllowDomains = async (c: Context<HonoCustomType>): Promise<strin
         return getDefaultDomains(c);
     }
     const user_role = await commonGetUserRole(c, user.user_id);
-    return user_role?.domains || getDefaultDomains(c);;
+    if (Array.isArray(user_role?.domains) && user_role.domains.length > 0) {
+        return expandDomainTemplates(c, user_role.domains);
+    }
+    return getDefaultDomains(c);
 }
 
 export async function sendWebhook(
